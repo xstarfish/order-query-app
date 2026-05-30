@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import re
-import pandas as pd   # 修复：导入 pandas
+import pandas as pd
 
 # ------------------- 从 st.secrets 读取敏感配置 -------------------
 FILE_ID = st.secrets["FILE_ID"]
@@ -82,8 +82,8 @@ if st.button("🔍 开始查询", type="primary"):
             st.success(f"共查询 **{len(all_nums)}** 个单号，其中 **{len(missing)}** 个未入库")
             if missing:
                 st.subheader("❌ 未入库单号列表")
-                # 修复：参数名完整 + 移除 hide_index（如果 streamlit 版本低）
-                st.dataframe(pd.DataFrame(missing, columns=["单号"]), use_container_width=True)
+                # 使用 code 块，自带复制按钮（右上角）
+                st.code("\n".join(missing), language="text")
             else:
                 st.balloons()
                 st.info("🎉 所有单号均已入库！")
