@@ -34,8 +34,9 @@ def call_wps_script(func_name):
         st.error(f"网络错误：{e}")
         return None
 
-def extract_sf_numbers(text):
-    pattern = r'\bSF[A-Z0-9]+\b'
+def extract_tracking_numbers(text):
+    """提取支持多种快递单号前缀：SF, JD, YT, JT, ZT, DPK, DPL, ZTO, YTO"""
+    pattern = r'\b(?:SF|JD|YT|JT|ZT|DPK|DPL|ZTO|YTO)[A-Z0-9]+\b'
     matches = re.findall(pattern, text, re.IGNORECASE)
     return [m.upper() for m in matches]
 
@@ -48,7 +49,7 @@ def get_existing_numbers():
         return []
 
 def main_query(auto_text, manual_text):
-    auto_numbers = extract_sf_numbers(auto_text) if auto_text else []
+    auto_numbers = extract_tracking_numbers(auto_text) if auto_text else []
     manual_numbers = [n.strip().upper() for n in manual_text.splitlines() if n.strip()] if manual_text else []
     all_numbers = list(dict.fromkeys(auto_numbers + manual_numbers))
     if not all_numbers:
@@ -62,13 +63,22 @@ st.set_page_config(page_title="订单入库查询", layout="centered")
 st.title("📦 订单入库状态查询")
 st.markdown("---")
 
+# 支持的前缀列表
+SUPPORTED_PREFIXES = "SF / JD / YT / JT / ZT / DPK / DPL / ZTO / YTO"
+
 col1, col2 = st.columns(2)
 with col1:
-    auto_input = st.text_area("📋 从报单文本中自动提取 SF 单号", height=250,
-                              placeholder="粘贴包含 SF 单号的报单文本...")
+    auto_input = st.text_area(
+        f"📋 从报单文本中自动提取快递单号（支持：{SUPPORTED_PREFIXES}）",
+        height=250,
+        placeholder=f"粘贴包含以下前缀单号的报单文本：\n{SUPPORTED_PREFIXES}\n例如：SF1234567890123"
+    )
 with col2:
-    manual_input = st.text_area("✍️ 手动输入单号（换行分隔）", height=250,
-                                placeholder="SF8888888888888\nYT6666666666666\n12345678")
+    manual_input = st.text_area(
+        "✍️ 手动输入单号（换行分隔，不限格式）",
+        height=250,
+        placeholder="SF8888888888888\nYT6666666666666\nJD123456789\n每行一个"
+    )
 
 if st.button("🔍 开始查询", type="primary"):
     if not auto_input and not manual_input:
@@ -82,7 +92,7 @@ if st.button("🔍 开始查询", type="primary"):
             st.success(f"共查询 **{len(all_nums)}** 个单号，其中 **{len(missing)}** 个未入库")
             if missing:
                 st.subheader("❌ 未入库单号列表")
-                # 使用 code 块，自带复制按钮（右上角）
+                # 使用 code 块自带复制按钮
                 st.code("\n".join(missing), language="text")
             else:
                 st.balloons()
