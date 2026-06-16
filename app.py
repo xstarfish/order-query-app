@@ -62,7 +62,7 @@ st.set_page_config(page_title="订单入库查询", layout="centered")
 st.title("📦 订单入库状态查询")
 st.markdown("---")
 
-# 初始化 session_state（若不存在）
+# 初始化 session_state（确保键存在）
 if "auto_input" not in st.session_state:
     st.session_state.auto_input = ""
 if "manual_input" not in st.session_state:
@@ -87,7 +87,6 @@ with col2:
         key="manual_input"
     )
 
-# 按钮布局：查询 + 重置
 col_btn1, col_btn2 = st.columns(2)
 with col_btn1:
     if st.button("🔍 开始查询", type="primary"):
@@ -111,6 +110,6 @@ with col_btn1:
 
 with col_btn2:
     if st.button("🔄 重置"):
+        # 仅清空两个输入框绑定的 session_state 值
         st.session_state.auto_input = ""
         st.session_state.manual_input = ""
-        st.rerun()
