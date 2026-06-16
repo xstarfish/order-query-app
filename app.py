@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 import re
-import pandas as pd
 
 # ------------------- 从 st.secrets 读取敏感配置 -------------------
 FILE_ID = st.secrets["FILE_ID"]
@@ -63,37 +62,55 @@ st.set_page_config(page_title="订单入库查询", layout="centered")
 st.title("📦 订单入库状态查询")
 st.markdown("---")
 
+# 初始化 session_state（若不存在）
+if "auto_input" not in st.session_state:
+    st.session_state.auto_input = ""
+if "manual_input" not in st.session_state:
+    st.session_state.manual_input = ""
+
 # 支持的前缀列表
 SUPPORTED_PREFIXES = "SF / JD / YT / JT / ZT / DPK / DPL / ZTO / YTO"
 
 col1, col2 = st.columns(2)
 with col1:
-    auto_input = st.text_area(
+    st.text_area(
         f"📋 从报单文本中自动提取快递单号（支持：{SUPPORTED_PREFIXES}）",
         height=250,
-        placeholder=f"粘贴包含以下前缀单号的报单文本：\n{SUPPORTED_PREFIXES}\n例如：SF1234567890123"
+        placeholder=f"粘贴包含以下前缀单号的报单文本：\n{SUPPORTED_PREFIXES}\n例如：SF1234567890123",
+        key="auto_input"
     )
 with col2:
-    manual_input = st.text_area(
+    st.text_area(
         "✍️ 手动输入单号（换行分隔，不限格式）",
         height=250,
-        placeholder="SF8888888888888\nYT6666666666666\nJD123456789\n每行一个"
+        placeholder="SF8888888888888\nYT6666666666666\nJD123456789\n每行一个",
+        key="manual_input"
     )
 
-if st.button("🔍 开始查询", type="primary"):
-    if not auto_input and not manual_input:
-        st.warning("请至少填写一个区域的单号")
-    else:
-        with st.spinner("正在查询，请稍候..."):
-            all_nums, missing = main_query(auto_input, manual_input)
-        if not all_nums:
-            st.warning("未提取到任何有效单号")
+# 按钮布局：查询 + 重置
+col_btn1, col_btn2 = st.columns(2)
+with col_btn1:
+    if st.button("🔍 开始查询", type="primary"):
+        auto_text = st.session_state.auto_input
+        manual_text = st.session_state.manual_input
+        if not auto_text and not manual_text:
+            st.warning("请至少填写一个区域的单号")
         else:
-            st.success(f"共查询 **{len(all_nums)}** 个单号，其中 **{len(missing)}** 个未入库")
-            if missing:
-                st.subheader("❌ 未入库单号列表")
-                # 使用 code 块自带复制按钮
-                st.code("\n".join(missing), language="text")
+            with st.spinner("正在查询，请稍候..."):
+                all_nums, missing = main_query(auto_text, manual_text)
+            if not all_nums:
+                st.warning("未提取到任何有效单号")
             else:
-                st.balloons()
-                st.info("🎉 所有单号均已入库！")
+                st.success(f"共查询 **{len(all_nums)}** 个单号，其中 **{len(missing)}** 个未入库")
+                if missing:
+                    st.subheader("❌ 未入库单号列表")
+                    st.code("\n".join(missing), language="text")
+                else:
+                    st.balloons()
+                    st.info("🎉 所有单号均已入库！")
+
+with col_btn2:
+    if st.button("🔄 重置"):
+        st.session_state.auto_input = ""
+        st.session_state.manual_input = ""
+        st.rerun()
