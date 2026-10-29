@@ -20,13 +20,44 @@ def call_wps_script(func_name):
         return None
 
 def extract_tracking_numbers(text):
-    pattern = r'\b(?:SF|JD|YT|JT|ZT|DPK|DPL|ZTO|YTO)[A-Z0-9]+\b'
+    pattern = r'\b(?:SF|JD|YT|JT|ZT|DPK|DPL|ZTO|YTO|KD)[A-Z0-9]+\b'
     return re.findall(pattern, text, re.IGNORECASE)
 
+def norm(s) -> str:
+    """规范化单号：去掉所有空白/全角空格/零宽字符，统一大写"""
+    s = str(s)
+    for ch in ("\u3000", " ", "\n", "\r", "\t", "\u200b", "\ufeff"):
+        s = s.replace(ch, "")
+    return s.upper()
+
 def get_existing_numbers():
+    """调用 WPS 宏，取回表格里已有的所有单号（兼容 dict / 裸 list 两种返回）"""
     result = call_wps_script("get_all_tracking_numbers")
-    if result and "data" in result and "result" in result["data"]:
-        return result["data"]["result"]
+
+    if not result or "data" not in result:
+        st.error("读取表格失败：call_wps_script 无返回，请检查 WPS 宏是否已加载！")
+        return []
+
+    payload = result["data"].get("result")
+
+    # 新版宏返回 {ok, book, sheet, lastRow, count, numbers}
+    if isinstance(payload, dict):
+        if not payload.get("ok"):
+            st.error(f"宏返回异常：{payload.get('err')}")
+            return []
+        numbers = payload.get("numbers", [])
+        st.caption(
+            f"表格：{payload.get('book')} / {payload.get('sheet')} | "
+            f"lastRow={payload.get('lastRow')} | 单号数={payload.get('count')}"
+        )
+        return numbers
+
+    # 兼容旧版宏：直接返回 list
+    if isinstance(payload, list):
+        st.caption(f"⚠️ 宏为旧版，返回裸 list，长度={len(payload)}")
+        return payload
+
+    st.error(f"宏返回类型异常：{type(payload)} -> {payload!r}")
     return []
 
 def main_query(auto_text, manual_text):
@@ -35,8 +66,14 @@ def main_query(auto_text, manual_text):
     all_numbers = list(dict.fromkeys(auto_numbers + manual_numbers))
     if not all_numbers:
         return [], []
+
     existing = get_existing_numbers()
-    missing = [n for n in all_numbers if n not in existing]
+    if not existing:
+        return all_numbers, all_numbers  # 读不到就当全部未入库，UI 会显示全部
+
+    # ✅ 规范化集合比对
+    existing_set = {norm(x) for x in existing}
+    missing = [n for n in all_numbers if norm(n) not in existing_set]
     return all_numbers, missing
 
 # ------------------- UI -------------------
@@ -44,15 +81,12 @@ st.set_page_config(page_title="订单入库查询", layout="centered")
 st.title("📦 订单入库状态查询")
 st.markdown("---")
 
-# 用于控制输入框是否重置的 key
 if "reset_flag" not in st.session_state:
     st.session_state.reset_flag = False
 
-# 定义输入框区域的占位符
 input_placeholder = st.empty()
 
 def render_inputs():
-    """渲染两个输入框，使用唯一的 key 以保证每次重置时刷新"""
     col1, col2 = st.columns(2)
     with col1:
         st.text_area(
@@ -69,15 +103,12 @@ def render_inputs():
             key=f"manual_input_{st.session_state.reset_flag}"
         )
 
-# 初始渲染
 with input_placeholder.container():
     render_inputs()
 
-# 按钮行
 col_btn1, col_btn2 = st.columns(2)
 with col_btn1:
     if st.button("🔍 开始查询", type="primary"):
-        # 根据当前 reset_flag 获取对应的输入框值
         auto_text = st.session_state.get(f"auto_input_{st.session_state.reset_flag}", "")
         manual_text = st.session_state.get(f"manual_input_{st.session_state.reset_flag}", "")
         if not auto_text and not manual_text:
@@ -98,6 +129,5 @@ with col_btn1:
 
 with col_btn2:
     if st.button("🔄 重置"):
-        # 改变 reset_flag → 强制重新创建输入框（旧输入框被销毁，新输入框为空）
         st.session_state.reset_flag = not st.session_state.reset_flag
-        st.rerun()   # 立即刷新页面，重新渲染输入框区域
+        st.rerun()
