@@ -90,7 +90,7 @@ def render_inputs():
     col1, col2 = st.columns(2)
     with col1:
         st.text_area(
-            "📋 自动提取快递单号（SF/JD/YT/JT/ZT/DPK/DPL/ZTO/YTO）",
+            "📋 自动提取快递单号（SF/JD/YT/JT/ZT/DPK/DPL/ZTO/YTO/KD）",
             height=250,
             placeholder="粘贴报单文本...",
             key=f"auto_input_{st.session_state.reset_flag}"
